@@ -24,6 +24,7 @@ package cmd
 import (
 	"os"
 
+	"github.com/bobbyrward/abs-importer/cmd/abs"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -50,9 +51,13 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.abs-importer.yaml)")
 	rootCmd.PersistentFlags().String("api-token", "", "The ABS api token")
 	rootCmd.PersistentFlags().String("library", "", "The root of your library")
+	rootCmd.PersistentFlags().String("libraryId", "", "The id of your audiobook library")
 
 	viper.BindPFlag("apiToken", rootCmd.PersistentFlags().Lookup("api-token"))
 	viper.BindPFlag("libraryRoot", rootCmd.PersistentFlags().Lookup("libraryRoot"))
+	viper.BindPFlag("libraryId", rootCmd.PersistentFlags().Lookup("libraryId"))
+
+	rootCmd.AddCommand(abs.AbsCmd)
 }
 
 func initConfig() {
