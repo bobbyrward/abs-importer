@@ -4,6 +4,7 @@ Copyright © 2023 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path"
@@ -19,13 +20,32 @@ import (
 
 // importCmd represents the import command
 var importCmd = &cobra.Command{
-	Use:   "import",
+	Use:   "import source title",
 	Short: "Imports an audiobook while attaching metadata",
-	RunE:  runImport,
+	RunE:  printError,
 	Args:  cobra.ExactArgs(2),
 }
 
+func printError(cmd *cobra.Command, args []string) error {
+	err := runImport(cmd, args)
+
+	if err != nil {
+		fmt.Printf("Error: %s\n", err)
+	}
+
+	return err
+}
+
+func sanitizeName(name string) string {
+	replacer := strings.NewReplacer("/", "-")
+
+	return replacer.Replace(name)
+}
+
 func runImport(cmd *cobra.Command, args []string) error {
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
+
 	sourceInfo, err := pkg.AnalyzeSource(args[0])
 	if err != nil {
 		return err
@@ -42,7 +62,11 @@ func runImport(cmd *cobra.Command, args []string) error {
 	for _, asin := range asins {
 		md, err := aac.GetMetadataFromAsin(asin)
 		if err != nil {
-			return err
+			fmt.Printf("WARNING: Skipping %s: %v\n", asin, err)
+			metadatas = append(metadatas, metadata.BookMetadata{
+				Title: "Skipped",
+			})
+			continue
 		}
 
 		metadatas = append(metadatas, md)
@@ -67,6 +91,8 @@ func runImport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	directoryName = sanitizeName(directoryName)
+
 	fullDirName := path.Join(viper.GetString("libraryRoot"), directoryName)
 
 	if !sourceInfo.IsDir {
@@ -75,11 +101,14 @@ func runImport(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
+		fmt.Printf("Linking %s to %s\n", sourceInfo.Filename, path.Join(fullDirName, path.Base(sourceInfo.Filename)))
+
 		err = os.Link(sourceInfo.Filename, path.Join(fullDirName, path.Base(sourceInfo.Filename)))
 		if err != nil {
 			return err
 		}
 	} else {
+		fmt.Printf("Copying %s to %s\n", sourceInfo.Filename, fullDirName)
 		cmd := exec.Command("cp", "-al", sourceInfo.Filename, fullDirName)
 		err = cmd.Run()
 		if err != nil {
@@ -117,6 +146,10 @@ func summarizeBookMetadata(md *metadata.BookMetadata) string {
 
 	if len(truncatedTitle) > 80 {
 		truncatedTitle = truncatedTitle[:77] + "..."
+	}
+
+	if md.Authors == nil {
+		return truncatedTitle
 	}
 
 	buffer.WriteString(truncatedTitle)

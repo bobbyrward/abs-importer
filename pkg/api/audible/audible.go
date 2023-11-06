@@ -54,7 +54,11 @@ func (aac *AudibleApiClient) SearchByTitle(title string) ([]string, error) {
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Unexpected response: status=%d", response.StatusCode)
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			body = []byte{}
+		}
+		return nil, fmt.Errorf("unexpected response: status=%d, body=%s", response.StatusCode, body)
 	}
 
 	responseBytes, err := io.ReadAll(response.Body)
@@ -94,7 +98,11 @@ func (aac *AudibleApiClient) GetMetadataFromAsin(asin string) (metadata.BookMeta
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		return md, fmt.Errorf("Unexpected response: status=%d", response.StatusCode)
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			body = []byte{}
+		}
+		return md, fmt.Errorf("unexpected response: status=%d, body=%s", response.StatusCode, body)
 	}
 
 	responseBytes, err := io.ReadAll(response.Body)
