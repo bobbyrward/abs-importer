@@ -22,14 +22,19 @@ THE SOFTWARE.
 package cmd
 
 import (
+	"fmt"
 	"os"
 
-	"github.com/bobbyrward/abs-importer/cmd/abs"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+
+	"github.com/bobbyrward/abs-importer/cmd/abs"
+	"github.com/bobbyrward/abs-importer/pkg/config"
 )
 
-var cfgFile string
+var (
+	cfgFile string
+	Config  *config.Config
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -49,37 +54,24 @@ func init() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.abs-importer.yaml)")
-	rootCmd.PersistentFlags().String("api-token", "", "The ABS api token")
-	rootCmd.PersistentFlags().String("library", "", "The root of your library")
-	rootCmd.PersistentFlags().String("libraryId", "", "The id of your audiobook library")
 
-	viper.BindPFlag("apiToken", rootCmd.PersistentFlags().Lookup("api-token"))
-	viper.BindPFlag("libraryRoot", rootCmd.PersistentFlags().Lookup("libraryRoot"))
-	viper.BindPFlag("libraryId", rootCmd.PersistentFlags().Lookup("libraryId"))
+	// rootCmd.PersistentFlags().String("api-token", "", "The ABS api token")
+	// rootCmd.PersistentFlags().String("library", "", "The root of your library")
+	// rootCmd.PersistentFlags().String("libraryId", "", "The id of your audiobook library")
+
+	// viper.BindPFlag("apiToken", rootCmd.PersistentFlags().Lookup("api-token"))
+	// viper.BindPFlag("libraryRoot", rootCmd.PersistentFlags().Lookup("libraryRoot"))
+	// viper.BindPFlag("libraryId", rootCmd.PersistentFlags().Lookup("libraryId"))
 
 	rootCmd.AddCommand(abs.AbsCmd)
 }
 
 func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		// Search config in home directory with name ".abs-importer" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".abs-importer")
+	cfg, err := config.NewConfig(config.WithConfigFilename(cfgFile))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: unable to load config: %v", err)
+		os.Exit(1)
 	}
 
-	viper.AutomaticEnv() // read in environment variables that match
-
-	viper.ReadInConfig()
-	// If a config file is found, read it in.
-	// if err := viper.ReadInConfig(); err == nil {
-	//	fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-	// }
+	Config = cfg
 }

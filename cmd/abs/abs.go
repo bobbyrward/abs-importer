@@ -14,7 +14,7 @@ var AbsCmd = &cobra.Command{
 }
 
 func init() {
-	AbsCmd.AddCommand(libraryCmd)
+	// AbsCmd.AddCommand(libraryCmd)
 
 	// Here you will define your flags and configuration settings.
 
