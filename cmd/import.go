@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -49,9 +50,23 @@ func runImport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	selectedMetadata, err := lookupMetadataByTitle(getTitleFromArgs(args))
+	byAsin, err := cmd.Flags().GetBool("by-asin")
 	if err != nil {
 		return err
+	}
+
+	var selectedMetadata metadata.BookMetadata
+
+	if byAsin {
+		selectedMetadata, err = lookupMetadataByAsin(getTitleFromArgs(args))
+		if err != nil {
+			return err
+		}
+	} else {
+		selectedMetadata, err = lookupMetadataByTitle(getTitleFromArgs(args))
+		if err != nil {
+			return err
+		}
 	}
 
 	directoryName, err := selectedMetadata.GenerateDirectoryName()
@@ -90,7 +105,35 @@ func moveFileToLibrary(fullDirName string, sourceInfo source.SourceInfo) error {
 
 	fmt.Printf("Linking %s to %s\n", sourceInfo.Filename, path.Join(fullDirName, path.Base(sourceInfo.Filename)))
 
-	err = os.Link(sourceInfo.Filename, path.Join(fullDirName, path.Base(sourceInfo.Filename)))
+	newName := path.Join(fullDirName, path.Base(sourceInfo.Filename))
+
+	err = os.Link(sourceInfo.Filename, newName)
+	if err != nil {
+		fmt.Printf("Hard link failed.  Falling back to copy\n")
+
+		err = copyFile(sourceInfo.Filename, newName)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func copyFile(srcFilename string, destFilename string) error {
+	sourceFile, err := os.Open(srcFilename)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destinationFile, err := os.Create(destFilename)
+	if err != nil {
+		return err
+	}
+	defer destinationFile.Close()
+
+	_, err = io.Copy(destinationFile, sourceFile)
 	if err != nil {
 		return err
 	}
@@ -105,7 +148,14 @@ func moveFolderToLibrary(fullDirName string, sourceInfo source.SourceInfo) error
 
 	err := cmd.Run()
 	if err != nil {
-		return err
+		fmt.Printf("Hard link failed.  Falling back to recursive copy\n")
+
+		cmd = exec.Command("cp", "-r", sourceInfo.Filename, fullDirName)
+
+		err = cmd.Run()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -167,6 +217,18 @@ func summarizeBookMetadatas(metadatas []metadata.BookMetadata) ([]string, error)
 	}
 
 	return bookChoices, nil
+}
+
+func lookupMetadataByAsin(asin string) (metadata.BookMetadata, error) {
+	aac := audible.NewAudibleApiClient()
+	md := metadata.BookMetadata{}
+
+	metadatas, err := getBookMetadataFromASINs(aac, []string{asin})
+	if err != nil {
+		return md, err
+	}
+
+	return metadatas[0], nil
 }
 
 func lookupMetadataByTitle(title string) (metadata.BookMetadata, error) {
@@ -258,4 +320,5 @@ func init() {
 	// is called directly, e.g.:
 	// importCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 	importCmd.Flags().String("library", "", "The library to import into")
+	importCmd.Flags().Bool("by-asin", false, "Lookup by asin instead of title")
 }
